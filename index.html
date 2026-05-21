@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barber Pro V96 - MULTIEMPLEADO INTEGRADO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', sans-serif; }
+        .card { background-color: #1e293b; border-radius: 1rem; padding: 1.2rem; border: 1px solid #334155; }
+        input, select { background-color: #334155; border: 1px solid #475569; color: white; padding: 0.5rem; border-radius: 0.5rem; width: 100%; margin-bottom: 0.5rem; }
+        .btn-blue { background: linear-gradient(to right, #2563eb, #1d4ed8); font-weight: bold; color: white; }
+        .btn-gold { background: linear-gradient(to right, #eab308, #ca8a04); color: #0f172a; font-weight: bold; }
+        .btn-indigo { background: linear-gradient(to right, #6366f1, #4f46e5); font-weight: bold; color: white; }
+        .btn-emerald { background: #10b981; color: white; font-weight: bold; }
+        .btn-red { background: #dc2626; color: white; font-weight: bold; }
+        .btn-orange { background: #f97316; color: white; font-weight: bold; }
+        .btn-quick { background: #334155; color: #fbbf24; font-size: 10px; padding: 6px; border-radius: 6px; font-weight: bold; border: 1px solid #fbbf2455; flex: 1; text-align: center; }
+        .btn-quick:active { background: #fbbf24; color: #0f172a; }
+        th { text-align: left; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 8px; }
+        td { padding: 10px 8px; border-bottom: 1px solid #334155; font-size: 11px; }
+        .hidden-data { filter: blur(8px); pointer-events: none; opacity: 0.3; transition: all 0.4s ease; }
+        .sync-indicator { font-size: 8px; text-transform: uppercase; color: #10b981; font-weight: bold; }
+    </style>
+</head>
+<body class="p-2 md:p-4 max-w-7xl mx-auto pb-20">
+
+    <!-- SECCIÓN DE AUTENTICACIÓN -->
+    <div id="authSection" class="max-w-md mx-auto mt-10">
+        <div class="card border-t-4 border-yellow-500 text-center shadow-2xl">
+            <h1 class="text-3xl font-black text-yellow-500 mb-2 italic uppercase">Barber Cloud</h1>
+            <p class="text-[10px] text-slate-500 mb-6 uppercase tracking-widest">V96 - REPARADO</p>
+            
+            <div class="flex justify-center gap-2 mb-4 bg-slate-900 p-1 rounded-lg border border-slate-700">
+                <button id="btnTabAdmin" onclick="cambiarModoLogin('admin')" class="flex-1 py-1.5 text-xs rounded font-bold bg-yellow-500 text-slate-900 transition-all">🔑 Dueño / Admin</button>
+                <button id="btnTabBarber" onclick="cambiarModoLogin('barber')" class="flex-1 py-1.5 text-xs rounded font-bold text-slate-400 transition-all">💈 Barbero</button>
+            </div>
+
+            <div id="loginForm">
+                <input type="text" id="userLog" placeholder="Usuario de la Barbería">
+                
+                <div id="camposAdmin">
+                    <input type="password" id="passwordLog" placeholder="Contraseña Admin">
+                </div>
+                <div id="camposBarbero" class="hidden">
+                    <input type="text" id="barberNameLog" placeholder="Tu Nombre de Barbero">
+                    <input type="password" id="barberPinLog" placeholder="Tu PIN de Acceso">
+                </div>
+
+                <button onclick="login()" class="btn-blue w-full py-3 rounded-lg uppercase mt-2">Ingresar al Sistema</button>
+                <button id="btnRegLink" onclick="toggleAuth(true)" class="text-xs text-yellow-500 mt-4 block underline">Registrar Nueva Barbería</button>
+            </div>
+
+            <div id="registerForm" class="hidden">
+                <input type="text" id="userReg" placeholder="Nuevo Usuario General">
+                <input type="password" id="passwordReg" placeholder="Contraseña">
+                <button onclick="registrarNuevoUsuario()" class="btn-gold w-full py-3 rounded-lg uppercase mt-2">Crear Cuenta</button>
+                <button onclick="toggleAuth(false)" class="text-xs text-slate-400 mt-4 block">Volver al Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ENTORNO 1: APP PRINCIPAL (DUEÑO / ADMINISTRADOR) -->
+    <div id="mainApp" class="hidden">
+        <header class="flex justify-between items-center py-4 mb-4 border-b border-slate-700">
+            <div>
+                <h1 class="text-xl font-black text-yellow-500 italic uppercase">Panel General (Admin)</h1>
+                <div class="flex items-center gap-2">
+                    <p class="text-[9px] text-slate-400" id="txtUserActual"></p>
+                    <span id="syncStatus" class="sync-indicator">● Online</span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btnTogglePrivacy" onclick="gestionarPrivacidad()" class="text-[10px] font-bold bg-slate-700 text-yellow-500 border border-yellow-500/50 px-3 py-1 rounded-full uppercase">🔓 Admin</button>
+                <button onclick="location.reload()" class="text-[10px] font-bold text-red-500 border border-red-500 px-3 py-1 rounded-full uppercase">Salir</button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD DIARIO -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <div class="card border-l-4 border-green-500"><p class="text-[9px] uppercase font-bold text-slate-400">💵 Ef. Hoy</p><p id="dashIngEf" class="text-xl font-black text-green-500">$0</p></div>
+            <div class="card border-l-4 border-blue-400"><p class="text-[9px] uppercase font-bold text-slate-400">📱 Tr. Hoy</p><p id="dashIngTr" class="text-xl font-black text-blue-400">$0</p></div>
+            <div class="card border-l-4 border-purple-500 bg-purple-900/10"><p class="text-[9px] uppercase font-bold text-purple-400">💰 Recaudado Hoy</p><p id="dashTotalHoy" class="text-xl font-black text-purple-200">$0</p></div>
+            <div class="card border-l-4 border-red-500"><p class="text-[9px] uppercase font-bold text-slate-400">Salidas Hoy</p><p id="dashGastos" class="text-xl font-black text-red-400">$0</p></div>
+            <div class="card border-l-4 border-yellow-500"><p class="text-[9px] uppercase font-bold text-slate-400">Utilidad Local Hoy</p><p id="dashUtilidadLimpia" class="text-xl font-black text-yellow-500">$0</p></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-6">
+                <!-- CARGA VENTA ADMIN -->
+                <div class="card border-l-4 border-yellow-500">
+                    <div class="flex justify-between mb-4">
+                        <h2 class="text-xs font-bold uppercase text-yellow-500 italic">Nueva Operación Directa</h2>
+                        <input type="date" id="fechaFiltro" onchange="actualizarReportes()" class="!w-auto !mb-0 !py-0 !text-[10px]">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        <select id="selBarbero"><option value="">Barbero...</option></select>
+                        <select id="selServicio" onchange="autoLlenarPrecio('admin')"><option value="">Servicio...</option></select>
+                        <input type="text" id="inputCliente" placeholder="Cliente">
+                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-slate-400">💵 Ef.</span><input type="number" id="inputEf" placeholder="0" class="pl-10"></div>
+                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-slate-400">📱 Tr.</span><input type="number" id="inputTr" placeholder="0" class="pl-10"></div>
+                        <input type="number" id="inputPropina" value="0" placeholder="Propina">
+                    </div>
+                    <div class="flex gap-2 mt-2 mb-4">
+                        <button onclick="seleccionarPago('todoEf', 'admin')" class="btn-quick">Todo 💵</button>
+                        <button onclick="seleccionarPago('todoTr', 'admin')" class="btn-quick">Todo 📱</button>
+                        <button onclick="seleccionarPago('mitad', 'admin')" class="btn-quick">50/50 🌓</button>
+                    </div>
+                    <button onclick="registrarVenta('admin')" class="btn-gold w-full py-3 rounded-lg text-xs uppercase">Guardar Operación</button>
+                </div>
+
+                <!-- MOVIMIENTOS -->
+                <div class="card border-l-4 border-blue-400 overflow-x-auto">
+                    <h2 class="text-xs font-bold uppercase mb-4 text-blue-400 italic">Movimientos del Día</h2>
+                    <table class="w-full">
+                        <thead><tr><th>Cliente</th><th>Barbero</th><th>Servicio</th><th>Monto</th><th>Pago</th><th>Sueldo B.</th><th></th></tr></thead>
+                        <tbody id="tablaVentas"></tbody>
+                    </table>
+                </div>
+
+                <!-- RESUMEN DIARIO DEL PERIODO -->
+                <div class="card border-t-4 border-slate-500 bg-slate-900/40">
+                    <h2 class="text-xs font-bold uppercase text-slate-300 mb-4 italic text-center">Desglose por Día (Periodo Seleccionado)</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead><tr class="border-b border-slate-700"><th>Fecha</th><th>Ingresos</th><th>Salidas</th><th>Cortes</th><th class="text-emerald-400">Utilidad Local</th></tr></thead>
+                            <tbody id="tablaReporteFechas" class="text-[10px]"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LATERAL -->
+            <div class="space-y-6">
+                <!-- REPORTE POR RANGO DE FECHAS -->
+                <div class="card border-t-4 border-purple-500 bg-slate-900/60 text-center">
+                    <h2 class="text-[10px] font-bold text-purple-400 mb-3 uppercase italic">Contabilidad del Periodo</h2>
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                        <div><p class="text-[8px] text-slate-400 uppercase text-left">Desde:</p><input type="date" id="filtroDesde" onchange="actualizarReportes()" class="!mb-0 text-[10px]"></div>
+                        <div><p class="text-[8px] text-slate-400 uppercase text-left">Hasta:</p><input type="date" id="filtroHasta" onchange="actualizarReportes()" class="!mb-0 text-[10px]"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-purple-900/20 p-2 rounded col-span-2 border border-purple-500/30"><p class="text-[8px] text-purple-300 uppercase font-bold">Ingresos Brutos Periodo</p><p id="resBruto" class="text-lg font-black italic text-purple-200">***</p></div>
+                        <div class="bg-slate-800 p-2 rounded"><p class="text-[7px] text-cyan-400 uppercase">Servicios</p><p id="resCantServicios" class="text-sm font-black italic">0</p></div>
+                        <div class="bg-slate-800 p-2 rounded"><p class="text-[7px] text-red-400 uppercase">Gastos + Pagos B.</p><p id="resGastosGenerales" class="text-sm font-black italic">***</p></div>
+                        <div class="bg-emerald-900/20 p-2 rounded col-span-2 border border-emerald-500/30"><p class="text-[8px] text-emerald-400 uppercase font-bold">Utilidad Real Periodo</p><p id="resUtilidadFinal" class="text-lg font-black text-emerald-400 italic">***</p></div>
+                    </div>
+                </div>
+
+                <!-- TOTAL SERVICIOS POR BARBERO -->
+                <div class="card border-t-4 border-indigo-500 bg-indigo-900/10 text-[11px]">
+                    <h2 class="text-xs font-black uppercase text-indigo-400 mb-3 italic text-center">Total Servicios por Barbero (Rango)</h2>
+                    <div id="listaServiciosPorBarbero" class="space-y-1.5"></div>
+                </div>
+
+                <!-- SALDOS BARBEROS -->
+                <div class="card border-t-4 border-cyan-500 bg-cyan-900/10 text-[11px]">
+                    <h2 class="text-xs font-black uppercase text-cyan-400 mb-4 italic text-center">Saldos Barberos (Periodo)</h2>
+                    <table class="w-full text-center">
+                        <thead><tr class="text-slate-500 font-bold"><th class="text-left">Nombre</th><th>C.</th><th>Pendiente</th></tr></thead>
+                        <tbody id="tablaDeudas"></tbody>
+                    </table>
+                </div>
+
+                <!-- CARGAS RÁPIDAS EXTRAS -->
+                <div class="card border-l-4 border-emerald-500">
+                    <h2 class="text-[10px] font-bold text-emerald-500 mb-2 uppercase">Venta Producto</h2>
+                    <input type="text" id="prodDesc" placeholder="Producto..."><input type="number" id="prodPrecio" placeholder="Precio $">
+                    <select id="prodMetodo"><option value="Efectivo">💵 Ef</option><option value="Transferencia">📱 Tr</option></select>
+                    <button onclick="registrarProducto()" class="btn-emerald w-full py-2 text-[10px] uppercase rounded">Cargar</button>
+                    <div id="listaProductosHoy" class="mt-2 text-[10px] text-slate-300"></div>
+                </div>
+
+                <div class="card border-l-4 border-orange-500">
+                    <h2 class="text-[10px] font-bold text-orange-400 mb-2 uppercase">Gasto del Local</h2>
+                    <input type="text" id="gastoDesc" placeholder="Motivo..."><input type="number" id="gastoMonto" placeholder="Monto $">
+                    <select id="selMetodoGasto"><option value="Efectivo">💵 Ef</option><option value="Transferencia">📱 Tr</option></select>
+                    <button onclick="agregarGasto()" class="btn-orange w-full py-2 text-[10px] uppercase rounded">Cargar Gasto</button>
+                    <div id="listaGastosHoy" class="mt-2 text-[10px] text-slate-300"></div>
+                </div>
+
+                <div class="card border-l-4 border-red-500">
+                    <h2 class="text-[10px] font-bold text-red-400 mb-2 uppercase">Adelanto/Pago Barbero</h2>
+                    <select id="selBarberoAdelanto"></select><input type="number" id="montoAdelanto" placeholder="Monto $">
+                    <select id="selMetodoAdelanto"><option value="Efectivo">💵 Ef</option><option value="Transferencia">📱 Tr</option></select>
+                    <button onclick="registrarAdelanto()" class="btn-red w-full py-2 text-[10px] uppercase rounded">Cargar Pago</button>
+                    <div id="listaAdelantosHoy" class="mt-2 text-[10px] text-slate-300"></div>
+                </div>
+
+                <!-- CONFIGURACIÓN CON ASIGNACIÓN DE PIN -->
+                <div id="configSection" class="card border-l-4 border-blue-500 bg-slate-800 hidden-data">
+                    <h2 class="text-xs font-bold text-blue-400 mb-4 uppercase">Configuración de Barbería</h2>
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700 mb-4">
+                        <input type="hidden" id="editIndexBarbero" value="-1">
+                        <input type="text" id="cfgNombreB" placeholder="Nombre del Barbero">
+                        <input type="password" id="cfgPinB" placeholder="PIN de acceso (Ej: 1234)">
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="cfgTipoComision"><option value="porcentaje">%</option><option value="fijo">$ Fijo</option></select>
+                            <input type="number" id="cfgValorB" placeholder="Valor">
+                        </div>
+                        <button id="btnGuardarBarbero" onclick="guardarBarbero()" class="w-full bg-blue-600 p-2 mt-1 rounded text-[10px] font-bold uppercase">Guardar Barbero</button>
+                    </div>
+                    <div id="listaBarberosCfg" class="space-y-1 mb-6"></div>
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <input type="text" id="cfgNombreS" placeholder="Nombre Servicio"><input type="number" id="cfgPrecioS" placeholder="Precio $">
+                        <button onclick="guardarServicio()" class="w-full bg-yellow-600 p-2 mt-1 rounded text-[10px] font-bold uppercase">Añadir Servicio</button>
+                    </div>
+                    <div id="listaServiciosCfg" class="mt-2 space-y-1"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ENTORNO 2: PANEL RESTRINGIDO PARA EL BARBERO -->
+    <div id="barberApp" class="hidden max-w-xl mx-auto space-y-4">
+        <header class="flex justify-between items-center py-4 border-b border-slate-700">
+            <div>
+                <h1 class="text-lg font-black text-indigo-400 italic uppercase">Terminal de Barbero</h1>
+                <p class="text-[10px] text-slate-300" id="txtBarberSesion"></p>
+            </div>
+            <button onclick="location.reload()" class="text-[10px] font-bold text-red-500 border border-red-500 px-3 py-1 rounded-full uppercase">Salir</button>
+        </header>
+
+        <!-- NUEVA TARJETA: VISUALIZACIÓN DE SALDOS PAGO -->
+        <div class="card border-t-4 border-emerald-500 bg-slate-900/80 text-center">
+            <p class="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Mi Estado Financiero Actual</p>
+            <div class="grid grid-cols-3 gap-2 mt-2">
+                <div class="bg-slate-800 p-2 rounded">
+                    <p class="text-[8px] text-slate-400 uppercase">Comisiones</p>
+                    <p id="bStatSueldo" class="text-xs font-bold text-white">$0</p>
+                </div>
+                <div class="bg-slate-800 p-2 rounded">
+                    <p class="text-[8px] text-red-400 uppercase">Adelantos</p>
+                    <p id="bStatAdelantos" class="text-xs font-bold text-red-400">$0</p>
+                </div>
+                <div class="bg-emerald-950/40 border border-emerald-500/30 p-2 rounded">
+                    <p class="text-[8px] text-emerald-400 uppercase font-black">Por Cobrar</p>
+                    <p id="bStatPendiente" class="text-sm font-black text-emerald-400">$0</p>
+                </div>
+            </div>
+            <p class="text-[7px] text-slate-500 uppercase mt-2 tracking-widest">Calculado según período activo del Administrador</p>
+        </div>
+
+        <!-- FORMULARIO CARGA BARBERO -->
+        <div class="card border-l-4 border-indigo-500 space-y-3">
+            <h2 class="text-xs font-bold uppercase text-indigo-400 italic">Registrar mi Servicio</h2>
+            <div>
+                <label class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Servicio Realizado:</label>
+                <select id="selServicioBarber" onchange="autoLlenarPrecio('barber')"><option value="">Seleccionar...</option></select>
+            </div>
+            <div>
+                <label class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Nombre del Cliente:</label>
+                <input type="text" id="inputClienteBarber" placeholder="Cliente...">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">💵 Cobrado en Efectivo:</label>
+                    <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-slate-400">$</span><input type="number" id="inputEfBarber" placeholder="0" class="pl-6"></div>
+                </div>
+                <div>
+                    <label class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">📱 Cobrado por Transf:</label>
+                    <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-slate-400">$</span><input type="number" id="inputTrBarber" placeholder="0" class="pl-6"></div>
+                </div>
+            </div>
+            <div>
+                <label class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">🎁 Propina Recibida (Opcional):</label>
+                <input type="number" id="inputPropinaBarber" value="0">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="seleccionarPago('todoEf', 'barber')" class="btn-quick">Todo 💵</button>
+                <button onclick="seleccionarPago('todoTr', 'barber')" class="btn-quick">Todo 📱</button>
+                <button onclick="seleccionarPago('mitad', 'barber')" class="btn-quick">50/50 🌓</button>
+            </div>
+            <button onclick="registrarVenta('barber')" class="btn-indigo w-full py-3 rounded-lg text-xs uppercase tracking-wider">Subir a Base de Datos</button>
+        </div>
+
+        <!-- LISTA INDIVIDUAL DEL BARBERO LOGUEADO -->
+        <div class="card border-l-4 border-slate-500 overflow-x-auto">
+            <h2 class="text-xs font-bold uppercase mb-3 text-slate-400 italic">Mis Registros de Hoy</h2>
+            <table class="w-full text-left">
+                <thead><tr><th>Cliente</th><th>Servicio</th><th>Monto</th><th>Tipo Pago</th><th></th></tr></thead>
+                <tbody id="tablaVentasBarber"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmIHUrJQN2Pav2vQCkLmX-FpnlfB0A2PM",
+            authDomain: "mibarberia-8e78d.firebaseapp.com",
+            databaseURL: "https://mibarberia-8e78d-default-rtdb.firebaseio.com",
+            projectId: "mibarberia-8e78d",
+            storageBucket: "mibarberia-8e78d.firebasestorage.app",
+            messagingSenderId: "797426485956",
+            appId: "1:797426485956:web:d1054df810b0797e4dd791"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let currentUser = null, currentRole = 'admin', loginMode = 'admin', loggedBarberName = "";
+        let userData = { barberos: [], servicios: [], diario: {} }, cifrasVisibles = false;
+        const CLAVE_MAESTRA = "1234";
+
+        function getHoy() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+        function getPrimerDiaMes() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }
+
+        let filDesdeGlobal = getPrimerDiaMes();
+        let filHastaGlobal = getHoy();
+
+        document.getElementById('fechaFiltro').value = getHoy();
+        document.getElementById('filtroDesde').value = filDesdeGlobal;
+        document.getElementById('filtroHasta').value = filHastaGlobal;
+
+        function cambiarModoLogin(modo) {
+            loginMode = modo;
+            document.getElementById('btnTabAdmin').className = modo === 'admin' ? 'flex-1 py-1.5 text-xs rounded font-bold bg-yellow-500 text-slate-900' : 'flex-1 py-1.5 text-xs rounded font-bold text-slate-400';
+            document.getElementById('btnTabBarber').className = modo === 'barber' ? 'flex-1 py-1.5 text-xs rounded font-bold bg-yellow-500 text-slate-900' : 'flex-1 py-1.5 text-xs rounded font-bold text-slate-400';
+            document.getElementById('camposAdmin').classList.toggle('hidden', modo !== 'admin');
+            document.getElementById('camposBarbero').classList.toggle('hidden', modo !== 'barber');
+            document.getElementById('btnRegLink').classList.toggle('hidden', modo !== 'admin');
+        }
+
+        function login() {
+            const u = document.getElementById('userLog').value.toLowerCase().trim();
+            if(!u) return alert("Coloque el nombre de la barbería");
+
+            db.ref('usuarios/'+u).once('value', snap => {
+                const cuenta = snap.val();
+                if(!cuenta) return alert("La barbería no existe");
+
+                if (loginMode === 'admin') {
+                    const p = document.getElementById('passwordLog').value.trim();
+                    if(cuenta.password === p) {
+                        currentUser = u; currentRole = 'admin';
+                        document.getElementById('authSection').classList.add('hidden');
+                        document.getElementById('mainApp').classList.remove('hidden');
+                        document.getElementById('txtUserActual').innerText = "Barbería: " + u;
+                        iniciarApp();
+                    } else alert("Contraseña de Admin incorrecta");
+                } else {
+                    const bNom = document.getElementById('barberNameLog').value.trim();
+                    const bPin = document.getElementById('barberPinLog').value.trim();
+                    const barberosLista = (cuenta.data && cuenta.data.barberos) ? cuenta.data.barberos : [];
+                    
+                    const encontrado = barberosLista.find(x => x.nombre.toLowerCase() === bNom.toLowerCase() && (x.pin || "1234") === bPin);
+                    
+                    if (encontrado) {
+                        currentUser = u; currentRole = 'barber'; loggedBarberName = encontrado.nombre;
+                        document.getElementById('authSection').classList.add('hidden');
+                        document.getElementById('barberApp').classList.remove('hidden');
+                        document.getElementById('txtBarberSesion').innerText = "Personal: " + encontrado.nombre + " @ " + u;
+                        iniciarApp();
+                    } else alert("Nombre de Barbero o PIN incorrecto");
+                }
+            });
+        }
+
+        function registrarNuevoUsuario() {
+            const u = document.getElementById('userReg').value.toLowerCase().trim(), p = document.getElementById('passwordReg').value.trim();
+            if(!u || !p) return alert("Completa los datos");
+            db.ref('usuarios/'+u).set({ password: p, data: { barberos: [], servicios: [], diario: {} } }).then(() => { alert("Registro Exitoso"); toggleAuth(false); });
+        }
+
+        function toggleAuth(showReg) { document.getElementById('loginForm').classList.toggle('hidden', showReg); document.getElementById('registerForm').classList.toggle('hidden', !showReg); }
+
+        function iniciarApp() {
+            db.ref('usuarios/'+currentUser+'/data').on('value', snap => {
+                const raw = snap.val();
+                if(raw) { 
+                    userData.barberos = raw.barberos || []; 
+                    userData.servicios = raw.servicios || []; 
+                    userData.diario = raw.diario || {}; 
+                    actualizarReportes(); 
+                    let st = document.getElementById('syncStatus'); if(st) st.innerText = "● Sincronizado";
+                }
+            });
+        }
+
+        function sync() {
+            if(!currentUser) return;
+            db.ref('usuarios/'+currentUser+'/data').set(JSON.parse(JSON.stringify(userData)));
+        }
+
+        function inicializarFecha(f) { 
+            if(!userData.diario) userData.diario = {}; 
+            if(!userData.diario[f]) userData.diario[f] = { ventas: [], gastos: [], adelantos: [], productos: [] }; 
+            // Asegurar subestructuras internas
+            if(!userData.diario[f].ventas) userData.diario[f].ventas = [];
+            if(!userData.diario[f].gastos) userData.diario[f].gastos = [];
+            if(!userData.diario[f].adelantos) userData.diario[f].adelantos = [];
+            if(!userData.diario[f].productos) userData.diario[f].productos = [];
+        }
+
+        function gestionarPrivacidad() {
+            cifrasVisibles = !cifrasVisibles;
+            if (cifrasVisibles) {
+                if (prompt("Clave Admin:") !== CLAVE_MAESTRA) { cifrasVisibles = false; return alert("Acceso Incorrecto"); }
+                document.getElementById('btnTogglePrivacy').innerText = "🔒 Ocultar"; document.getElementById('configSection').classList.remove('hidden-data');
+            } else { document.getElementById('btnTogglePrivacy').innerText = "🔓 Admin"; document.getElementById('configSection').classList.add('hidden-data'); }
+            actualizarReportes();
+        }
+
+        function autoLlenarPrecio(rol) {
+            const suf = rol === 'admin' ? '' : 'Barber';
+            const sI = document.getElementById('selServicio' + suf).value;
+            if(sI === "") { document.getElementById('inputEf'+suf).value = ""; document.getElementById('inputTr'+suf).value = ""; return; }
+            const s = userData.servicios[sI];
+            document.getElementById('inputEf'+suf).value = s.precio;
+            document.getElementById('inputTr'+suf).value = 0;
+        }
+
+        function seleccionarPago(tipo, rol) {
+            const suf = rol === 'admin' ? '' : 'Barber';
+            const sI = document.getElementById('selServicio' + suf).value; if(sI === "") return alert("Elije un servicio");
+            const s = userData.servicios[sI];
+            if(tipo === 'todoEf') { document.getElementById('inputEf'+suf).value = s.precio; document.getElementById('inputTr'+suf).value = 0; }
+            else if(tipo === 'todoTr') { document.getElementById('inputEf'+suf).value = 0; document.getElementById('inputTr'+suf).value = s.precio; }
+            else if(tipo === 'mitad') { document.getElementById('inputEf'+suf).value = s.precio/2; document.getElementById('inputTr'+suf).value = s.precio/2; }
+        }
+
+        function renderizarDropdowns() {
+            if (currentRole === 'admin') {
+                const selB = document.getElementById('selBarbero'), selS = document.getElementById('selServicio'), selBA = document.getElementById('selBarberoAdelanto');
+                const valB = selB.value, valS = selS.value, valBA = selBA.value;
+                selB.innerHTML = '<option value="">Barbero...</option>' + (userData.barberos || []).map((b,i) => `<option value="${i}">${b.nombre}</option>`).join('');
+                selBA.innerHTML = '<option value="">Barbero...</option>' + (userData.barberos || []).map(b => `<option value="${b.nombre}">${b.nombre}</option>`).join('');
+                selS.innerHTML = '<option value="">Servicio...</option>' + (userData.servicios || []).map((s,i) => `<option value="${i}">${s.nombre} ($${s.precio})</option>`).join('');
+                if(valB && selB.querySelector(`option[value="${valB}"]`)) selB.value = valB;
+                if(valS && selS.querySelector(`option[value="${valS}"]`)) selS.value = valS;
+                if(valBA && selBA.querySelector(`option[value="${valBA}"]`)) selBA.value = valBA;
+            } else {
+                const selSBarber = document.getElementById('selServicioBarber'); const valSBarber = selSBarber.value;
+                selSBarber.innerHTML = '<option value="">Seleccionar Servicio...</option>' + (userData.servicios || []).map((s,i) => `<option value="${i}">${s.nombre} ($${s.precio})</option>`).join('');
+                if(valSBarber && selSBarber.querySelector(`option[value="${valSBarber}"]`)) selSBarber.value = valSBarber;
+            }
+        }
+
+        function actualizarReportes() { 
+            if(currentRole === 'admin') {
+                filDesdeGlobal = document.getElementById('filtroDesde').value;
+                filHastaGlobal = document.getElementById('filtroHasta').value;
+            }
+            renderizarDropdowns(); 
+            refrescarTodo(); 
+            if(currentRole==='admin'){calcularMes(); generarTablaFechas();} 
+        }
+
+        function refrescarTodo() {
+            const f = currentRole === 'admin' ? document.getElementById('fechaFiltro').value : getHoy();
+            if(!f) return;
+            inicializarFecha(f);
+            const dia = userData.diario[f];
+
+            if (currentRole === 'admin') {
+                document.getElementById('listaBarberosCfg').innerHTML = (userData.barberos || []).map((b,i) => `<div class="flex justify-between bg-slate-900 p-1 rounded text-[10px]"><span>${b.nombre} (PIN: ${b.pin || '1234'})</span><div><button onclick="prepararEdicionBarbero(${i})" class="text-blue-400 px-2">✏️</button><button onclick="eliminar('barberos',${i})" class="text-red-500 px-2">X</button></div></div>`).join('');
+                document.getElementById('listaServiciosCfg').innerHTML = (userData.servicios || []).map((s,i) => `<div class="flex justify-between bg-slate-900 p-1 rounded text-[10px]"><span>${s.nombre}</span><button onclick="eliminar('servicios',${i})" class="text-red-500 px-2">X</button></div>`).join('');
+
+                let ingEfHoy = 0, ingTrHoy = 0, gH = (dia.gastos || []).reduce((a,c) => a + c.monto, 0), utilLimpiaHoy = 0, tH = "";
+                (dia.ventas || []).forEach((v,i) => {
+                    ingEfHoy += (v.pagoEf || 0); ingTrHoy += (v.pagoTr || 0); utilLimpiaHoy += (v.ganL || 0);
+                    let pD = (v.pagoEf > 0 && v.pagoTr > 0) ? `E/T` : (v.pagoEf > 0 ? "💵 Ef" : "📱 Tr");
+                    tH += `<tr><td class="font-bold text-white">${v.cliente||'-'}</td><td>${v.barbero}</td><td>${v.servicioNom}</td><td>$${v.bruto}</td><td class="text-[9px]">${pD}</td><td class="text-orange-400">${cifrasVisibles?'$'+v.pagoB.toFixed(0):'***'}</td><td><button onclick="borrarVenta('${f}',${i})" class="text-red-500">X</button></td></tr>`;
+                });
+                (dia.productos || []).forEach(p => { if(p.metodo==='Transferencia') ingTrHoy += p.precio; else ingEfHoy += p.precio; utilLimpiaHoy += p.precio; });
+                let aH = (dia.adelantos || []).reduce((a,c) => a + c.monto, 0);
+                utilLimpiaHoy -= gH;
+
+                document.getElementById('dashIngEf').innerText = `$${ingEfHoy.toFixed(0)}`;
+                document.getElementById('dashIngTr').innerText = `$${ingTrHoy.toFixed(0)}`;
+                document.getElementById('dashTotalHoy').innerText = `$${(ingEfHoy + ingTrHoy).toFixed(0)}`;
+                document.getElementById('dashGastos').innerText = `$${(gH + aH).toFixed(0)}`;
+                document.getElementById('dashUtilidadLimpia').innerText = `$${utilLimpiaHoy.toFixed(0)}`;
+                document.getElementById('tablaVentas').innerHTML = tH;
+
+                let stats = {}; (userData.barberos || []).forEach(b => stats[b.nombre] = { sueldo: 0, adelantos: 0, cortes: 0 });
+                for (let d in userData.diario) {
+                    if(d >= filDesdeGlobal && d <= filHastaGlobal) {
+                        inicializarFecha(d);
+                        (userData.diario[d].ventas || []).forEach(v => { if(stats[v.barbero]) { stats[v.barbero].sueldo += v.pagoB; stats[v.barbero].cortes++; } });
+                        (userData.diario[d].adelantos || []).forEach(a => { if(stats[a.barbero]) stats[a.barbero].adelantos += a.monto; });
+                    }
+                }
+                document.getElementById('listaServiciosPorBarbero').innerHTML = Object.keys(stats).map(n => `<div class="flex justify-between bg-slate-950/40 p-2 rounded border border-indigo-500/20"><span class="font-bold text-slate-300">${n}</span><span class="text-indigo-400 font-black">${stats[n].cortes} servicios</span></div>`).join('');
+                document.getElementById('tablaDeudas').innerHTML = Object.keys(stats).map(n => `<tr><td class="text-left font-bold text-slate-300">${n}</td><td class="text-cyan-400 font-bold">${cifrasVisibles?stats[n].cortes:'*'}</td><td class="text-yellow-500 font-bold">${cifrasVisibles?'$'+(stats[n].sueldo-stats[n].adelantos).toFixed(0):'***'}</td></tr>`).join('');
+                document.getElementById('listaGastosHoy').innerHTML = (dia.gastos || []).map((g,i)=>`<div>• ${g.desc} ($${g.monto}) <button onclick="borrarGasto('${f}',${i})" class="text-red-500">x</button></div>`).join('');
+                document.getElementById('listaAdelantosHoy').innerHTML = (dia.adelantos || []).map((a,i)=>`<div>• ${a.barbero} ($${a.monto}) <button onclick="borrarAdelanto('${f}',${i})" class="text-red-500">x</button></div>`).join('');
+                document.getElementById('listaProductosHoy').innerHTML = (dia.productos || []).map((p,i)=>`<div>• ${p.desc} ($${p.precio}) <button onclick="borrarProducto('${f}',${i})" class="text-red-500">x</button></div>`).join('');
+            } else {
+                let bSueldo = 0, bAdelantos = 0;
+                for (let d in userData.diario) {
+                    if(d >= filDesdeGlobal && d <= filHastaGlobal) {
+                        inicializarFecha(d);
+                        (userData.diario[d].ventas || []).forEach(v => { if(v.barbero === loggedBarberName) bSueldo += v.pagoB; });
+                        (userData.diario[d].adelantos || []).forEach(a => { if(a.barbero === loggedBarberName) bAdelantos += a.monto; });
+                    }
+                }
+                
+                document.getElementById('bStatSueldo').innerText = `$${bSueldo.toFixed(0)}`;
+                document.getElementById('bStatAdelantos').innerText = `$${bAdelantos.toFixed(0)}`;
+                document.getElementById('bStatPendiente').innerText = `$${(bSueldo - bAdelantos).toFixed(0)}`;
+
+                let hB = "";
+                (dia.ventas || []).forEach((v, i) => {
+                    if(v.barbero === loggedBarberName) {
+                        let pD = (v.pagoEf > 0 && v.pagoTr > 0) ? `Mixto` : (v.pagoEf > 0 ? "💵 Ef" : "📱 Tr");
+                        hB += `<tr><td class="font-bold text-white">${v.cliente}</td><td>${v.servicioNom}</td><td>$${v.bruto}</td><td>${pD}</td><td><button onclick="borrarVenta('${f}',${i})" class="text-red-500 font-bold font-mono">Eliminar</button></td></tr>`;
+                    }
+                });
+                document.getElementById('tablaVentasBarber').innerHTML = hB || `<tr><td colspan="5" class="text-center text-slate-500 py-4">No has registrado servicios hoy</td></tr>`;
+            }
+        }
+
+        function calcularMes() {
+            let tin = 0, tout = 0, cantS = 0, utilM = 0;
+            for (let f in userData.diario) {
+                if(f >= filDesdeGlobal && f <= filHastaGlobal) {
+                    inicializarFecha(f);
+                    let d = userData.diario[f];
+                    tin += (d.ventas || []).reduce((a,c)=>a+c.bruto,0) + (d.productos || []).reduce((a,c)=>a+c.precio,0);
+                    cantS += (d.ventas || []).length;
+                    tout += (d.gastos || []).reduce((a,c)=>a+c.monto,0) + (d.adelantos || []).reduce((a,c)=>a+c.monto,0);
+                    utilM += (d.ventas || []).reduce((a,c)=>a+c.ganL,0) + (d.productos || []).reduce((a,c)=>a+c.precio,0) - (d.gastos || []).reduce((a,c)=>a+c.monto,0);
+                }
+            }
+            document.getElementById('resBruto').innerText = cifrasVisibles ? `$${tin.toFixed(0)}` : '***';
+            document.getElementById('resGastosGenerales').innerText = cifrasVisibles ? `$${tout.toFixed(0)}` : '***';
+            document.getElementById('resUtilidadFinal').innerText = cifrasVisibles ? `$${utilM.toFixed(0)}` : '***';
+            document.getElementById('resCantServicios').innerText = cantS;
+        }
+
+        function generarTablaFechas() {
+            let h = ""; let fs = Object.keys(userData.diario).filter(f => f >= filDesdeGlobal && f <= filHastaGlobal).sort().reverse();
+            fs.forEach(f => {
+                inicializarFecha(f);
+                let d = userData.diario[f], vD = (d.ventas || []).reduce((a,c)=>a+c.bruto,0) + (d.productos || []).reduce((a,c)=>a+c.precio,0);
+                let gD = (d.gastos || []).reduce((a,c)=>a+c.monto,0) + (d.adelantos || []).reduce((a,c)=>a+c.monto,0);
+                let uD = (d.ventas || []).reduce((a,c)=>a+c.ganL,0) + (d.productos || []).reduce((a,c)=>a+c.precio,0) - (d.gastos || []).reduce((a,c)=>a+c.monto,0);
+                h += `<tr class="border-b border-slate-800"><td>${f.split('-')[2]}/${f.split('-')[1]}</td><td>${cifrasVisibles?'$'+vD:'***'}</td><td class="text-red-400">${cifrasVisibles?'$'+gD:'***'}</td><td class="text-center">${(d.ventas||[]).length}</td><td class="text-emerald-400 font-bold">${cifrasVisibles?'$'+uD.toFixed(0):'***'}</td></tr>`;
+            });
+            document.getElementById('tablaReporteFechas').innerHTML = h;
+        }
+
+        function registrarVenta(rol) {
+            const suf = rol === 'admin' ? '' : 'Barber';
+            const f = rol === 'admin' ? document.getElementById('fechaFiltro').value : getHoy();
+            const sI = document.getElementById('selServicio' + suf).value;
+            
+            let bObj = null;
+            if (rol === 'admin') {
+                const bI = document.getElementById('selBarbero').value;
+                if(bI === "") return alert("Elija un barbero");
+                bObj = userData.barberos[bI];
+            } else {
+                bObj = userData.barberos.find(x => x.nombre === loggedBarberName);
+            }
+
+            if(!f || !bObj || sI === "") return alert("Faltan datos operacionales");
+            inicializarFecha(f);
+
+            const s = userData.servicios[sI];
+            const ef = parseFloat(document.getElementById('inputEf' + suf).value) || 0;
+            const tr = parseFloat(document.getElementById('inputTr' + suf).value) || 0;
+            const p = parseFloat(document.getElementById('inputPropina' + suf).value) || 0;
+
+            if ((ef + tr) !== s.precio) return alert("Suma incorrecta. Debe ser exacta a: $" + s.precio);
+            
+            let pB = (bObj.tipoComision === 'fijo') ? (bObj.valor + p) : ((s.precio * (bObj.valor / 100)) + p);
+            
+            userData.diario[f].ventas.push({
+                cliente: document.getElementById('inputCliente' + suf).value || "-",
+                barbero: bObj.nombre,
+                servicioNom: s.nombre,
+                pagoEf: ef,
+                pagoTr: tr,
+                pagoB: pB,
+                bruto: s.precio,
+                ganL: (s.precio - (pB - p))
+            });
+
+            document.getElementById('inputCliente' + suf).value = "";
+            document.getElementById('selServicio' + suf).value = "";
+            document.getElementById('inputEf' + suf).value = "";
+            document.getElementById('inputTr' + suf).value = "";
+            document.getElementById('inputPropina' + suf).value = 0;
+            if(rol === 'admin') document.getElementById('selBarbero').value = "";
+            
+            sync();
+        }
+
+        function registrarProducto() {
+            const f = document.getElementById('fechaFiltro').value;
+            const d = document.getElementById('prodDesc').value;
+            const p = parseFloat(document.getElementById('prodPrecio').value);
+            const m = document.getElementById('prodMetodo').value;
+            if(!f) return alert("Selecciona una fecha válida");
+            if(d && !isNaN(p)) { 
+                inicializarFecha(f); 
+                userData.diario[f].productos.push({ desc: d, precio: p, metodo: m }); 
+                document.getElementById('prodDesc').value = ""; 
+                document.getElementById('prodPrecio').value = ""; 
+                sync(); 
+            } else alert("Faltan datos del producto");
+        }
+
+        function registrarAdelanto() {
+            const f = document.getElementById('fechaFiltro').value;
+            const b = document.getElementById('selBarberoAdelanto').value;
+            const m = parseFloat(document.getElementById('montoAdelanto').value);
+            const met = document.getElementById('selMetodoAdelanto').value;
+            if(!f) return alert("Selecciona una fecha válida");
+            if(b && !isNaN(m)) { 
+                inicializarFecha(f); 
+                userData.diario[f].adelantos.push({ barbero: b, monto: m, metodo: met }); 
+                document.getElementById('montoAdelanto').value=""; 
+                document.getElementById('selBarberoAdelanto').value=""; 
+                sync(); 
+            } else alert("Faltan datos del adelanto");
+        }
+
+        function agregarGasto() {
+            const f = document.getElementById('fechaFiltro').value;
+            const d = document.getElementById('gastoDesc').value;
+            const m = parseFloat(document.getElementById('gastoMonto').value);
+            const met = document.getElementById('selMetodoGasto').value;
+            if(!f) return alert("Selecciona una fecha válida");
+            if(d && !isNaN(m)) { 
+                inicializarFecha(f); 
+                userData.diario[f].gastos.push({ desc: d, monto: m, metodo: met }); 
+                document.getElementById('gastoDesc').value=""; 
+                document.getElementById('gastoMonto').value=""; 
+                sync(); 
+            } else alert("Faltan datos del gasto");
+        }
+
+        function guardarBarbero() {
+            const n = document.getElementById('cfgNombreB').value, v = parseFloat(document.getElementById('cfgValorB').value), t = document.getElementById('cfgTipoComision').value, idx = parseInt(document.getElementById('editIndexBarbero').value);
+            const pin = document.getElementById('cfgPinB').value.trim() || "1234";
+            if(!n || isNaN(v)) return alert("Datos inválidos");
+            if (idx === -1) userData.barberos.push({ nombre: n, valor: v, tipoComision: t, pin: pin }); else userData.barberos[idx] = { nombre: n, valor: v, tipoComision: t, pin: pin };
+            document.getElementById('cfgNombreB').value = ""; document.getElementById('cfgValorB').value = ""; document.getElementById('cfgPinB').value = ""; document.getElementById('editIndexBarbero').value = "-1"; 
+            document.getElementById('btnGuardarBarbero').innerText = "Guardar Barbero";
+            sync();
+        }
+
+        function prepararEdicionBarbero(idx) {
+            const b = userData.barberos[idx]; document.getElementById('cfgNombreB').value = b.nombre; document.getElementById('cfgTipoComision').value = b.tipoComision || 'porcentaje'; document.getElementById('cfgValorB').value = b.valor; document.getElementById('cfgPinB').value = b.pin || "1234"; document.getElementById('editIndexBarbero').value = idx; document.getElementById('btnGuardarBarbero').innerText = "Actualizar";
+        }
+
+        function guardarServicio() {
+            const n = document.getElementById('cfgNombreS').value, p = parseFloat(document.getElementById('cfgPrecioS').value);
+            if(n && !isNaN(p)) { userData.servicios.push({ nombre: n, precio: p }); document.getElementById('cfgNombreS').value=""; document.getElementById('cfgPrecioS').value=""; sync(); }
+        }
+
+        function borrarVenta(f, i) { userData.diario[f].ventas.splice(i, 1); sync(); }
+        function borrarGasto(f, i) { userData.diario[f].gastos.splice(i, 1); sync(); }
+        function borrarAdelanto(f, i) { userData.diario[f].adelantos.splice(i, 1); sync(); }
+        function borrarProducto(f, i) { userData.diario[f].productos.splice(i, 1); sync(); }
+        function eliminar(tipo, i) { userData[tipo].splice(i, 1); sync(); }
+    </script>
+</body>
+</html>
